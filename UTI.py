@@ -10,11 +10,11 @@ import RPi.GPIO as GPIO
 import signal
 import os.path
 from datetime import datetime
+
+#variable initialization
 global PreviousTime
 global usageDEC
 global meterList
-
-#variable initialization
 meterList = []
 PreviousTime = 0
 
@@ -38,8 +38,8 @@ time.sleep(2)
 
 #mount server location
 subprocess.Popen('sudo mount -t cifs -o credentials=/etc/win-credentials //192.168.2.20/meter_tmp /home/pi/Desktop/MeterIDsShared',stdout=subprocess.PIPE, shell=True)
-print("attempted mount")
-time.sleep(1)
+print("attempted mount to server location")
+time.sleep(0.5)
 
 #start listening for meters
 listenersproc = subprocess.Popen('rtl_tcp')
@@ -69,26 +69,24 @@ def getRoundedTime():
         print("Error in getRoundedTime")    
         
     newDT = (dateR + "_" + newTime)
-    
     return newDT
 
 def csvLogger(MeterNumber,Value,Type):
     current_time = time.time()
     today = datetime.now()
 
-    #Timestamp = today.strftime("%Y-%m-%d_%H:%M")
     Timestamp = getRoundedTime()
     filename = "/home/pi/Desktop/MeterIDsShared/"+str(MeterNumber)+".csv"
-    try:
+    try:            #if .csv file already exists
         csvfile = open(filename, 'a', newline ='', encoding='utf-8')
         c = csv.writer(csvfile)
-        data_to_save = [Timestamp, Value,Type]
+        data_to_save = [Timestamp,Value,Type]
         c.writerow(data_to_save)
         csvfile.close()
-    except:
+    except:         #if .csv file does not exist
         csvfile = open(filename, 'w', newline ='',encoding='utf-8')
         c = csv.writer(csvfile)
-        data_to_save = [Timestamp, Value,Type]
+        data_to_save = [Timestamp,Value,Type]
         c.writerow(data_to_save)
         csvfile.close()
 
@@ -98,26 +96,32 @@ def getCurrentTime():
     Timestamp = today.strftime("%Y-%m-%d_%H:%M")
     return Timestamp
 
+#IS THIS NEEDED???????????????????????????????????????????????????????
 def Timeout(current_time, timeout):
     if time.time() > current_time + timeout:
         return False
     else:
         return True
     
-def storeData(identity,usage,meterType):
-    global PreviousTime
     
-    if meterType == str(12) or meterType == str(156) or meterType == str(11):   #gas
-        usageDEC=str(usage/100)
-    elif meterType == str(13) or meterType == str(203):                         #water
-        usageDEC=str(usage/10)
-    elif meterType == str(5):                                                   #electricity
-        usageDEC=str(usage/100)
+def checkMeterType(type,use):
+    if type == str(12) or type == str(156) or type == str(11):   #gas
+        usageDEC=str(use/100)
+    elif type == str(13) or type == str(203):                         #water
+        usageDEC=str(use/10)
+    elif type == str(5):                                                   #electricity
+        usageDEC=str(use/100)
     else:
-        usageDEC=str(usage)
+        usageDEC=str(use)
         print("not of meter type 12, 156, 11, 13, 203, or 5. Decimal point may be incorrect:")
-        
-    if (getCurrentTime() == PreviousTime and not identity in meterList):    #if .csv does not exist currently
+
+    return usageDEC
+    
+def storeData(identity,usage,meterType):
+    global PreviousTime         #IS THIS NEEDED??????????????????????????????????????????????????????
+    usageDEC = checkMeterType(meterType,usage)
+    
+    if (getCurrentTime() == PreviousTime and not identity in meterList):
             GPIO.output(greenLED,GPIO.HIGH)
             print(getRoundedTime() + '\tMeterID: #' + identity + ',\tType: ' + meterType + ',\tConsumption: ' + usageDEC + ' m3')
             PreviousTime= getCurrentTime()
@@ -125,7 +129,7 @@ def storeData(identity,usage,meterType):
             time.sleep(0.1)
             GPIO.output(greenLED,GPIO.LOW)
             meterList.append(identity)
-    elif (getCurrentTime() != PreviousTime):                                #if .csv does exist
+    elif (getCurrentTime() != PreviousTime):
             meterList.clear()
             GPIO.output(greenLED,GPIO.HIGH)
             print(getRoundedTime() + '\tMeterID: #' + identity + ',\tType: ' + meterType + ',\tConsumption: ' + usageDEC + ' m3')
@@ -135,10 +139,10 @@ def storeData(identity,usage,meterType):
             GPIO.output(greenLED,GPIO.LOW)
             meterList.append(identity)
 
-GPIO.add_event_detect(button, GPIO.RISING, 
-        callback=button_pressed_callback, bouncetime=200)
-
+#CAN THIS BE MOVED HIGHER UP TO THE BUTTON DEFINITION??????????????????????????????
+GPIO.add_event_detect(button, GPIO.RISING, callback=button_pressed_callback, bouncetime=200)
 signal.signal(signal.SIGINT, signal_handler)
+
 try:    
     while True:
         GPIO.output(RedLED,GPIO.HIGH)
@@ -163,28 +167,25 @@ try:
                     number_of_points+=1
                     data = False
                     os.execl(sys.executable, sys.executable, *sys.argv)
-                
-                
-                #if (data['EndpointID']):
+                                
+                #using (data['EndpointID']) data:
                 try:
                     meterID = str( int(data['Message']['EndpointID']))
                     consumption =  int(data['Message']['Consumption'])
                     metertype = str(data['Message']['EndpointType'])
                     storeData(meterID,consumption,metertype)
-                #if (data['ID']):
+                    
+                #using (data['ID']) data:
                 except:
                     meterID = str( int(data['Message']['ID']))
                     consumption = int(data['Message']['Consumption'])
                     metertype = str(data['Message']['Type'])
                     storeData(meterID,consumption,metertype)
-                       
 
             except KeyboardInterrupt:
                 print("interrupted!")
                 val1 = os.system("killall -KILL rtlamr")    
                 val2 = os.system("killall -KILL rtl_tcp")
-            
-        
     exit(0)
 except:
     print("crasher I hardley knower!")
