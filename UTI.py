@@ -12,11 +12,13 @@ import os.path
 from datetime import datetime
 global PreviousTime
 global usageDEC
-PreviousTime = 0
 global meterList
-meterList = []
 
-#GPIO Initialization
+#variable initialization
+meterList = []
+PreviousTime = 0
+
+#GPIO initialization
 global button
 global RedLED
 global greenLED
@@ -27,14 +29,23 @@ GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 GPIO.setup(RedLED,GPIO.OUT)
 GPIO.setup(greenLED,GPIO.OUT)
+GPIO.setup(button, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) # Set pin 10 to be an input pin, set initial value to be pulled low (OFF)
 
-# PS: Let's kill any other instances that may be running
+#kill any other instances that may be running
 val1 = os.system("killall -KILL rtlamr")    
 val2 = os.system("killall -KILL rtl_tcp")    
-
 time.sleep(2)
 
+#mount server location
+subprocess.Popen('sudo mount -t cifs -o credentials=/etc/win-credentials //192.168.2.20/meter_tmp /home/pi/Desktop/MeterIDsShared',stdout=subprocess.PIPE, shell=True)
+print("attempted mount")
+time.sleep(1)
+
+#start listening for meters
 listenersproc = subprocess.Popen('rtl_tcp')
+
+
+#functions
 
 def signal_handler(sig, frame):
     GPIO.cleanup()
@@ -46,36 +57,7 @@ def button_pressed_callback(channel):
     GPIO.output(RedLED,GPIO.LOW)
     os.execl(sys.executable, sys.executable, *sys.argv)
 
-
-#not needed now that we're not indexing
-# def csvTimeChecker(MeterNumber,csvTimeLast):
-#     #get current time and date
-#     timeCheck = getCurrentTime()[-5:]
-#     dateCheck = getCurrentTime()[:10]
-#     
-#     #get last csv time and date
-#     csvTime = csvTimeLast()[-5:]
-#     csvDate = csvTimeLast()[:10]
-#         
-#     #get current rounded date and time
-#     if((timeCheck[-1:] == 0) or (timeCheck[-1:] == 1) or (timeCheck[-1:] == 2)):
-#         newTime = timeCheck[:-1]+"0"
-#     elif((timeCheck[-1:] == 3) or (timeCheck[-1:] == 4) or (timeCheck[-1:] == 5)):
-#         newTime = timeCheck[:-1]+"5"
-#         
-#     if(csvDate == dateCheck):
-#         #add 5 min increments until the time 
-#     
-#     
-#     
-#     filename = "/home/pi/Desktop/UKMeterCollection/MeterIDs/"+str(MeterNumber)+".csv"
-#     file = open(filename)
-#     
-#     print(date)
-#     return time
-
 def getRoundedTime():
-    
     timeR = getCurrentTime()[-5:]
     dateR = getCurrentTime()[:10]
     
@@ -86,35 +68,34 @@ def getRoundedTime():
     else:
         print("Error in getRoundedTime")    
         
-    newDT = (dateR + "T" + newTime)
+    newDT = (dateR + "_" + newTime)
     
     return newDT
 
-def csvLogger(MeterNumber, Value):
-    
+def csvLogger(MeterNumber,Value,Type):
     current_time = time.time()
     today = datetime.now()
 
-    #Timestamp = today.strftime("%Y-%m-%dT%H:%M")
+    #Timestamp = today.strftime("%Y-%m-%d_%H:%M")
     Timestamp = getRoundedTime()
-    filename = "/home/pi/Desktop/UKMeterCollection/MeterIDs/"+str(MeterNumber)+".csv"
+    filename = "/home/pi/Desktop/MeterIDsShared/"+str(MeterNumber)+".csv"
     try:
         csvfile = open(filename, 'a', newline ='', encoding='utf-8')
         c = csv.writer(csvfile)
-        data_to_save = [Timestamp, Value]
+        data_to_save = [Timestamp, Value,Type]
         c.writerow(data_to_save)
         csvfile.close()
     except:
         csvfile = open(filename, 'w', newline ='',encoding='utf-8')
         c = csv.writer(csvfile)
-        data_to_save = [Timestamp, Value]
+        data_to_save = [Timestamp, Value,Type]
         c.writerow(data_to_save)
         csvfile.close()
 
 def getCurrentTime():
     current_time = time.time()
     today = datetime.now()
-    Timestamp = today.strftime("%Y-%m-%dT%H:%M")
+    Timestamp = today.strftime("%Y-%m-%d_%H:%M")
     return Timestamp
 
 def Timeout(current_time, timeout):
@@ -126,33 +107,34 @@ def Timeout(current_time, timeout):
 def storeData(identity,usage,meterType):
     global PreviousTime
     
-    if meterType == str(12) or meterType == str(156) or meterType == str(11):
+    if meterType == str(12) or meterType == str(156) or meterType == str(11):   #gas
         usageDEC=str(usage/100)
-    elif meterType == str(13) or meterType == str(203):
+    elif meterType == str(13) or meterType == str(203):                         #water
         usageDEC=str(usage/10)
+    elif meterType == str(5):                                                   #electricity
+        usageDEC=str(usage/100)
     else:
         usageDEC=str(usage)
-        print("not of meter type 12, 156, 11, 13, or 203. Decimal point may be incorrect:")
+        print("not of meter type 12, 156, 11, 13, 203, or 5. Decimal point may be incorrect:")
         
-    if (getCurrentTime() == PreviousTime and not identity in meterList):
+    if (getCurrentTime() == PreviousTime and not identity in meterList):    #if .csv does not exist currently
             GPIO.output(greenLED,GPIO.HIGH)
             print(getRoundedTime() + '\tMeterID: #' + identity + ',\tType: ' + meterType + ',\tConsumption: ' + usageDEC + ' m3')
             PreviousTime= getCurrentTime()
-            csvLogger(identity, usageDEC)
+            csvLogger(identity,usageDEC,meterType)
             time.sleep(0.1)
             GPIO.output(greenLED,GPIO.LOW)
             meterList.append(identity)
-    elif (getCurrentTime() != PreviousTime):
+    elif (getCurrentTime() != PreviousTime):                                #if .csv does exist
             meterList.clear()
             GPIO.output(greenLED,GPIO.HIGH)
             print(getRoundedTime() + '\tMeterID: #' + identity + ',\tType: ' + meterType + ',\tConsumption: ' + usageDEC + ' m3')
             PreviousTime= getCurrentTime()
-            csvLogger(identity, usageDEC)
+            csvLogger(identity,usageDEC,meterType)
             time.sleep(0.1)
             GPIO.output(greenLED,GPIO.LOW)
             meterList.append(identity)
- 
-GPIO.setup(button, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) # Set pin 10 to be an input pin and set initial value to be pulled low (off)
+
 GPIO.add_event_detect(button, GPIO.RISING, 
         callback=button_pressed_callback, bouncetime=200)
 
