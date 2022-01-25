@@ -44,7 +44,6 @@ time.sleep(0.5)
 #start listening for meters
 listenersproc = subprocess.Popen('rtl_tcp')
 
-
 #functions
 
 def signal_handler(sig, frame):
@@ -60,14 +59,12 @@ def button_pressed_callback(channel):
 def getRoundedTime():
     timeR = getCurrentTime()[-5:]
     dateR = getCurrentTime()[:10]
-    
     if timeR[-1:] == '0' or timeR[-1:] == '1' or timeR[-1:] == '2' or timeR[-1:] == '3' or timeR[-1:] == '4':
         newTime = timeR[:-1]+"0"
     elif timeR[-1:] == '5' or timeR[-1:] == '6' or timeR[-1:] =='7' or timeR[-1:] == '8' or timeR[-1:] == '9':
         newTime = timeR[:-1]+"5"
     else:
         print("Error in getRoundedTime")    
-        
     newDT = (dateR + "_" + newTime)
     return newDT
 
@@ -96,50 +93,44 @@ def getCurrentTime():
     Timestamp = today.strftime("%Y-%m-%d_%H:%M")
     return Timestamp
 
-#IS THIS NEEDED???????????????????????????????????????????????????????
 def Timeout(current_time, timeout):
     if time.time() > current_time + timeout:
         return False
     else:
         return True
-    
-    
-def checkMeterType(type,use):
-    if type == str(12) or type == str(156) or type == str(11):   #gas
+        
+def checkMeterType(typeM,use):
+    if typeM == str(12) or typeM == str(156) or typeM == str(11):   #gas
         usageDEC=str(use/100)
-    elif type == str(13) or type == str(203):                         #water
+    elif typeM == str(13) or typeM == str(203):                     #water
         usageDEC=str(use/10)
-    elif type == str(5):                                                   #electricity
+    elif typeM == str(5):                                           #electricity
         usageDEC=str(use/100)
     else:
         usageDEC=str(use)
         print("not of meter type 12, 156, 11, 13, 203, or 5. Decimal point may be incorrect:")
-
     return usageDEC
     
+def displayDataAndLight(identity,meterType,usageDEC):
+    GPIO.output(greenLED,GPIO.HIGH)
+    print(getRoundedTime() + '\tMeterID: #' + identity + ',\tType: ' + meterType + ',\tConsumption: ' + usageDEC + ' m3')
+    PreviousTime = getCurrentTime()
+    csvLogger(identity,usageDEC,meterType)
+    time.sleep(0.1)
+    GPIO.output(greenLED,GPIO.LOW)
+    
 def storeData(identity,usage,meterType):
-    global PreviousTime         #IS THIS NEEDED??????????????????????????????????????????????????????
+    global PreviousTime
     usageDEC = checkMeterType(meterType,usage)
     
     if (getCurrentTime() == PreviousTime and not identity in meterList):
-            GPIO.output(greenLED,GPIO.HIGH)
-            print(getRoundedTime() + '\tMeterID: #' + identity + ',\tType: ' + meterType + ',\tConsumption: ' + usageDEC + ' m3')
-            PreviousTime= getCurrentTime()
-            csvLogger(identity,usageDEC,meterType)
-            time.sleep(0.1)
-            GPIO.output(greenLED,GPIO.LOW)
+            displayDataAndLight(identity,meterType,usageDEC)
             meterList.append(identity)
     elif (getCurrentTime() != PreviousTime):
             meterList.clear()
-            GPIO.output(greenLED,GPIO.HIGH)
-            print(getRoundedTime() + '\tMeterID: #' + identity + ',\tType: ' + meterType + ',\tConsumption: ' + usageDEC + ' m3')
-            PreviousTime= getCurrentTime()
-            csvLogger(identity,usageDEC,meterType)
-            time.sleep(0.1)
-            GPIO.output(greenLED,GPIO.LOW)
+            displayDataAndLight(identity,meterType,usageDEC)
             meterList.append(identity)
 
-#CAN THIS BE MOVED HIGHER UP TO THE BUTTON DEFINITION??????????????????????????????
 GPIO.add_event_detect(button, GPIO.RISING, callback=button_pressed_callback, bouncetime=200)
 signal.signal(signal.SIGINT, signal_handler)
 
