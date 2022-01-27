@@ -31,20 +31,17 @@ GPIO.setup(RedLED,GPIO.OUT)
 GPIO.setup(greenLED,GPIO.OUT)
 GPIO.setup(button, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) # Set pin 10 to be an input pin, set initial value to be pulled low (OFF)
 
-#kill any other instances that may be running
-val1 = os.system("killall -KILL rtlamr")    
-val2 = os.system("killall -KILL rtl_tcp")    
-time.sleep(2)
-
-#mount server location
-subprocess.Popen('sudo mount -t cifs -o credentials=/etc/win-credentials //192.168.2.20/meter_tmp /home/pi/Desktop/MeterIDsShared',stdout=subprocess.PIPE, shell=True)
-print("attempted mount to server location")
-time.sleep(0.5)
-
-#start listening for meters
-listenersproc = subprocess.Popen('rtl_tcp')
 
 #functions
+
+def rapidGreenBlink ():
+    i = 0
+    while(i < 7):
+        GPIO.output(greenLED,GPIO.HIGH)
+        time.sleep(0.05)
+        GPIO.output(greenLED,GPIO.LOW)
+        time.sleep(0.05)
+        i = i + 1
 
 def signal_handler(sig, frame):
     GPIO.cleanup()
@@ -130,6 +127,22 @@ def storeData(identity,usage,meterType):
             meterList.clear()
             displayDataAndLight(identity,meterType,usageDEC)
             meterList.append(identity)
+
+#MAIN CODE BEGINS
+
+#kill any other instances that may be running
+val1 = os.system("killall -KILL rtlamr")    
+val2 = os.system("killall -KILL rtl_tcp")    
+time.sleep(2)
+
+#mount server location
+subprocess.Popen('sudo mount -t cifs -o credentials=/etc/win-credentials //192.168.2.20/meter_tmp /home/pi/Desktop/MeterIDsShared',stdout=subprocess.PIPE, shell=True)
+print("attempted mount to server location")
+rapidGreenBlink()
+time.sleep(4)
+
+#start listening for meters
+listenersproc = subprocess.Popen('rtl_tcp')
 
 GPIO.add_event_detect(button, GPIO.RISING, callback=button_pressed_callback, bouncetime=200)
 signal.signal(signal.SIGINT, signal_handler)
