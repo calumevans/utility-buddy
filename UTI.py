@@ -36,11 +36,7 @@ GPIO.output(greenLED,GPIO.LOW)
 
 #functions
 
-def rapidBlink(colour,count):
-    if colour==0:
-        LEDpin = greenLED
-    elif colour==1:
-        LEDpin = RedLED
+def rapidBlink(LEDpin,count):
     i = 0
     while(i < count):
         GPIO.output(LEDpin,GPIO.HIGH)
@@ -144,7 +140,7 @@ time.sleep(2)
 #mount server location
 subprocess.Popen('sudo mount -t cifs -o credentials=/etc/win-credentials //192.168.2.20/meter_tmp /home/pi/Desktop/MeterIDsShared',stdout=subprocess.PIPE, shell=True)
 print("attempted mount to server location")
-rapidBlink(0,6)
+rapidBlink(greenLED,6)
 time.sleep(4)
 
 #start listening for meters
@@ -174,7 +170,7 @@ try:
                     #print(data)
                 except ValueError:
                     print("Json error")
-                    rapidBlink(1,6)
+                    rapidBlink(RedLED,6)
                     number_of_points+=1
                     data = False
                     os.execl(sys.executable, sys.executable, *sys.argv)
@@ -200,9 +196,21 @@ try:
     exit(0)
 except:
     print("crasher I hardley knower!")
-    rapidBlink(1,3)
+    button = 21
+    RedLED = 23 #gpio23 for v1.0 and v2.0
+    greenLED = 27 #gpio24 for v1.0, gpio27 for v2.0
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setwarnings(False)
+    GPIO.setup(RedLED,GPIO.OUT)
+    GPIO.setup(greenLED,GPIO.OUT)
+    GPIO.setup(button, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) # Set pin 10 to be an input pin, set initial value to be pulled low (OFF)
+    GPIO.output(RedLED,GPIO.LOW)
+    GPIO.output(greenLED,GPIO.LOW)
+    rapidBlink(RedLED,3)
     GPIO.setmode(GPIO.BCM)
     GPIO.output(RedLED,GPIO.LOW)
     GPIO.output(greenLED,GPIO.LOW)
-    val1 = os.system("killall -KILL rtlamr")    
+    val1 = os.system("killall -KILL rtlamr")
+    time.sleep(1)
     val2 = os.system("killall -KILL rtl_tcp")
+    time.sleep(1)
